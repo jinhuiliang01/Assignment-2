@@ -1,150 +1,551 @@
 <!DOCTYPE html>
-<head>
-  <title>Creative-Coding-Assignment-2</title>
-  <style>
-    body {
-      margin: 0;
-    }
-    canvas {
-      display: block;
-    }
-  </style>
-</head>
+<html>
+  <body style="margin: 0; overflow: hidden">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-<body>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script>
-    let camera, scene, renderer;
-    let keys = {};
-    let moveSpeed = 0.1;
-    let mouseSensitivity = 0.002;
-    const WORLD_HEIGHT = 1.7;
-    init();
-    animate();
-    function init() {
-      // Scene setup
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x000000);
-      // Camera
-      camera = new THREE.PerspectiveCamera(
-        75,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-      );
-      camera.position.set(0, WORLD_HEIGHT, 0);
-      // Renderer
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
-      // Create environment
-      createChaoticCity();
-      createGridFloor();
-      // Controls
-      document.addEventListener("keydown", (e) => (keys[e.key] = true));
-      document.addEventListener("keyup", (e) => (keys[e.key] = false));
-      // Mouse lock
-      document.addEventListener("click", () => {
-        document.body.requestPointerLock();
-      });
-      // Mouse movement (horizontal only)
-      document.addEventListener("mousemove", (e) => {
-        if (document.pointerLockElement === document.body) {
-          camera.rotation.y -= e.movementX * mouseSensitivity;
-          camera.rotation.x = 0; // Lock vertical rotation
-        }
-      });
-    }
-    function createGridFloor() {
-      // White base plane
-      const floorGeometry = new THREE.PlaneGeometry(100, 100);
-      const floorMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        side: THREE.DoubleSide,
-      });
-      const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-      floor.rotation.x = -Math.PI / 2;
-      scene.add(floor);
-      // Black grid lines
-      const grid = new THREE.GridHelper(100, 50, 0x000000, 0x000000);
-      grid.material.opacity = 1.0;
-      grid.material.transparent = false;
-      grid.position.y = 0.01; // Slightly above floor to prevent z-fighting
-      scene.add(grid);
-    }
-    function createChaoticCity() {
-      const spacing = 4;
-      const baseSize = 1;
-      for (let x = -25; x <= 25; x += spacing) {
-        for (let z = -25; z <= 25; z += spacing) {
-          if (Math.random() > 0.5) {
-            // Random cube dimensions
-            const width = baseSize * (0.5 + Math.random());
-            const height = baseSize * (0.5 + Math.random() * 3);
-            const depth = baseSize * (0.5 + Math.random());
-            // Random elevation (30% chance to float)
-            let yPos = height / 2;
-            if (Math.random() > 0.7) {
-              yPos += 2 + Math.random() * 5; // Float 2-7 units above ground
+    <div
+      id="truth-hint"
+      style="
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: red;
+        font-family: monospace;
+        font-size: 18px;
+        opacity: 0;
+      "
+    >
+      The TRUTH is out there...
+    </div>
+
+    <script>
+      let camera, scene, renderer;
+      let keys = {};
+      let moveSpeed = 0.1;
+      let mouseSensitivity = 0.002;
+      const WORLD_HEIGHT = 1.7;
+
+      let buildings = [];
+      let truthGroup;
+      let truthHintElement;
+      let truthDirection = new THREE.Vector3();
+      let truthCenter = new THREE.Vector3(0, WORLD_HEIGHT, 0);
+      let isNearTruth = false;
+      let isFacingTruth = false;
+      let autoRotate = false;
+      let controlsDisabled = false;
+      let glitchIntensity = 0;
+      let clock = new THREE.Clock();
+
+      // Viewing angle settings
+      let correctViewAngle = Math.PI * 0.25; // Angle from which TRUTH is visible (looking from NE)
+      let angleTolerance = 0.15; // How close the view angle needs to be
+      let correctViewPosition = new THREE.Vector3(15, WORLD_HEIGHT, 15); // Position where word aligns
+
+      init();
+      animate();
+
+      function init() {
+        // Scene setup
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+
+        // Camera
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.set(0, WORLD_HEIGHT, 5);
+
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Create environment
+        createChaoticCity();
+        createGridFloor();
+        createTruthStructure();
+
+        // Controls
+        document.addEventListener("keydown", function (e) {
+          if (!controlsDisabled) keys[e.key] = true;
+          if (e.key === "Escape") controlsDisabled = false;
+        });
+        document.addEventListener("keyup", function (e) {
+          keys[e.key] = false;
+        });
+
+        // Mouse lock
+        document.addEventListener("click", function () {
+          document.body.requestPointerLock();
+        });
+
+        document.addEventListener("mousemove", function (e) {
+          if (
+            document.pointerLockElement === document.body &&
+            !controlsDisabled
+          ) {
+            camera.rotation.y -= e.movementX * mouseSensitivity;
+          }
+        });
+
+        truthHintElement = document.getElementById("truth-hint");
+        addTruthParticles();
+
+        window.addEventListener("resize", function () {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        clock.start();
+      }
+
+      function createGridFloor() {
+        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floorMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          side: THREE.DoubleSide,
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        const grid = new THREE.GridHelper(100, 50, 0x000000, 0x000000);
+        grid.material.opacity = 1.0;
+        grid.material.transparent = false;
+        grid.position.y = 0.01;
+        scene.add(grid);
+      }
+
+      function createChaoticCity() {
+        buildings = [];
+        const spacing = 4;
+        const baseSize = 1;
+
+        for (let x = -25; x <= 25; x += spacing) {
+          for (let z = -25; z <= 25; z += spacing) {
+            if (Math.random() > 0.3) {
+              const width = baseSize * (0.5 + Math.random());
+              const height = baseSize * (0.5 + Math.random() * 5);
+              const depth = baseSize * (0.5 + Math.random());
+
+              let yPos = height / 2;
+              if (Math.random() > 0.6) {
+                yPos += 2 + Math.random() * 5;
+              }
+
+              const geometry = new THREE.BoxGeometry(width, height, depth);
+              const material = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                wireframe: Math.random() > 0.7,
+              });
+
+              const building = new THREE.Mesh(geometry, material);
+              building.position.set(
+                x + (Math.random() - 0.5) * 2,
+                yPos,
+                z + (Math.random() - 0.5) * 2
+              );
+
+              building.userData = {
+                originalPosition: building.position.clone(),
+                originalColor: 0xffffff,
+                glitchTime: Math.random() * 10,
+                glitchDuration: 0,
+              };
+
+              if (!material.wireframe) {
+                const edges = new THREE.EdgesGeometry(geometry);
+                const wireframe = new THREE.LineSegments(
+                  edges,
+                  new THREE.LineBasicMaterial({ color: 0xffffff })
+                );
+                building.add(wireframe);
+              }
+
+              scene.add(building);
+              buildings.push(building);
             }
-            // Create irregular cube
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshBasicMaterial({
-              color: 0xffffff,
-            });
-            const building = new THREE.Mesh(geometry, material);
-            building.position.set(
-              x + (Math.random() - 0.5) * 2, // Add horizontal randomness
-              yPos,
-              z + (Math.random() - 0.5) * 2
-            );
-            // White wireframe
-            const edges = new THREE.EdgesGeometry(geometry);
-            const wireframe = new THREE.LineSegments(
-              edges,
-              new THREE.LineBasicMaterial({ color: 0xffffff })
-            );
-            building.add(wireframe);
-            scene.add(building);
           }
         }
       }
-    }
-    function handleMovement() {
-      const direction = new THREE.Vector3();
-      if (keys["w"]) direction.z -= 1;
-      if (keys["s"]) direction.z += 1;
-      if (keys["a"]) direction.x -= 1;
-      if (keys["d"]) direction.x += 1;
-      if (direction.length() === 0) return;
-      direction.normalize();
-      const yaw = camera.rotation.y;
-      const forward = new THREE.Vector3(
-        Math.sin(yaw),
-        0,
-        Math.cos(yaw)
-      ).normalize();
-      const right = new THREE.Vector3(
-        Math.cos(yaw),
-        0,
-        -Math.sin(yaw)
-      ).normalize();
-      camera.position.add(
-        right
-          .multiplyScalar(direction.x * moveSpeed)
-          .add(forward.multiplyScalar(direction.z * moveSpeed))
-      );
-      camera.position.y = WORLD_HEIGHT;
-    }
-    function animate() {
-      requestAnimationFrame(animate);
-      handleMovement();
-      renderer.render(scene, camera);
-    }
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
-</body>
+
+      function createTruthStructure() {
+        truthGroup = new THREE.Group();
+
+        // Space the letters out in 3D space
+        const letterSpacingX = 5;
+        const letterSpacingZ = 5;
+        const startX = -10;
+        const startZ = -10;
+        const yPos = WORLD_HEIGHT + 2;
+
+        // Create each letter at different positions
+        createLetterT(startX, yPos, startZ);
+        createLetterR(startX + letterSpacingX, yPos, startZ + letterSpacingZ);
+        createLetterU(startX + letterSpacingX * 2, yPos, startZ);
+        createLetterT(
+          startX + letterSpacingX * 3,
+          yPos,
+          startZ + letterSpacingZ
+        );
+        createLetterH(startX + letterSpacingX * 4, yPos, startZ);
+
+        scene.add(truthGroup);
+
+        // Make truth cubes look like normal buildings initially
+        truthGroup.children.forEach(function (group) {
+          group.children.forEach(function (cube) {
+            cube.material.color.setHex(0xffffff);
+            cube.material.transparent = false;
+            cube.material.opacity = 1;
+            cube.material.wireframe = false;
+            cube.material.emissive = undefined;
+          });
+        });
+      }
+
+      function createLetterT(x, y, z) {
+        const group = new THREE.Group();
+
+        // Vertical line (3 cubes tall)
+        for (let i = 0; i < 3; i++) {
+          const cube = createTruthCube(x, y + i, z);
+          group.add(cube);
+        }
+
+        // Horizontal line (3 cubes wide)
+        for (let i = -1; i <= 1; i++) {
+          const cube = createTruthCube(x + i, y + 2, z);
+          group.add(cube);
+        }
+
+        truthGroup.add(group);
+      }
+
+      function createLetterR(x, y, z) {
+        const group = new THREE.Group();
+
+        // Vertical line
+        for (let i = 0; i < 3; i++) {
+          const cube = createTruthCube(x, y + i, z);
+          group.add(cube);
+        }
+
+        // Top horizontal
+        group.add(createTruthCube(x + 1, y + 2, z));
+        // Middle horizontal
+        group.add(createTruthCube(x + 1, y + 1, z));
+        // Diagonal
+        group.add(createTruthCube(x + 1, y, z));
+
+        truthGroup.add(group);
+      }
+
+      function createLetterU(x, y, z) {
+        const group = new THREE.Group();
+
+        // Left vertical
+        for (let i = 0; i < 3; i++) {
+          group.add(createTruthCube(x, y + i, z));
+        }
+
+        // Right vertical
+        for (let i = 0; i < 3; i++) {
+          group.add(createTruthCube(x + 1, y + i, z));
+        }
+
+        // Bottom
+        group.add(createTruthCube(x + 0.5, y, z));
+
+        truthGroup.add(group);
+      }
+
+      function createLetterH(x, y, z) {
+        const group = new THREE.Group();
+
+        // Left vertical
+        for (let i = 0; i < 3; i++) {
+          group.add(createTruthCube(x, y + i, z));
+        }
+
+        // Right vertical
+        for (let i = 0; i < 3; i++) {
+          group.add(createTruthCube(x + 1, y + i, z));
+        }
+
+        // Middle horizontal
+        group.add(createTruthCube(x + 0.5, y + 1, z));
+
+        truthGroup.add(group);
+      }
+
+      function createTruthCube(x, y, z) {
+        const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          wireframe: false,
+        });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(x, y, z);
+        return cube;
+      }
+
+      function addTruthParticles() {
+        const particlesGeometry = new THREE.BufferGeometry();
+        const particlesCnt = 100;
+        const posArray = new Float32Array(particlesCnt * 3);
+
+        for (let i = 0; i < particlesCnt * 3; i += 3) {
+          const angle = Math.random() * Math.PI * 2;
+          const radius = 5 + Math.random() * 10;
+          posArray[i] = truthCenter.x + Math.cos(angle) * radius;
+          posArray[i + 1] = truthCenter.y + (Math.random() - 0.5) * 10;
+          posArray[i + 2] = truthCenter.z + Math.sin(angle) * radius;
+        }
+
+        particlesGeometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(posArray, 3)
+        );
+
+        const particlesMaterial = new THREE.PointsMaterial({
+          size: 0.3,
+          color: 0xffdddd,
+          transparent: true,
+          opacity: 0.4,
+        });
+
+        const particlesMesh = new THREE.Points(
+          particlesGeometry,
+          particlesMaterial
+        );
+        particlesMesh.userData = {
+          isParticles: true,
+          originalPositions: posArray.slice(),
+        };
+        scene.add(particlesMesh);
+      }
+
+      function handleMovement() {
+        if (controlsDisabled) return;
+
+        const direction = new THREE.Vector3();
+        if (keys["w"]) direction.z -= 1;
+        if (keys["s"]) direction.z += 1;
+        if (keys["a"]) direction.x -= 1;
+        if (keys["d"]) direction.x += 1;
+
+        if (direction.length() === 0 && !autoRotate) return;
+
+        if (!autoRotate && direction.length() > 0) {
+          direction.normalize();
+          const yaw = camera.rotation.y;
+          const forward = new THREE.Vector3(
+            Math.sin(yaw),
+            0,
+            Math.cos(yaw)
+          ).normalize();
+          const right = new THREE.Vector3(
+            Math.cos(yaw),
+            0,
+            -Math.sin(yaw)
+          ).normalize();
+
+          camera.position.add(
+            right
+              .multiplyScalar(direction.x * moveSpeed)
+              .add(forward.multiplyScalar(direction.z * moveSpeed))
+          );
+        } else if (autoRotate) {
+          truthDirection
+            .copy(correctViewPosition)
+            .sub(camera.position)
+            .normalize();
+          const targetRotationY = Math.atan2(
+            truthDirection.x,
+            truthDirection.z
+          );
+          let currentRotationY = camera.rotation.y;
+          const rotationDiff = targetRotationY - currentRotationY;
+          const normalizedDiff =
+            ((rotationDiff + Math.PI) % (Math.PI * 2)) - Math.PI;
+          camera.rotation.y += normalizedDiff * 0.05;
+        }
+
+        camera.position.y = WORLD_HEIGHT;
+      }
+
+      function updateTruthVisibility() {
+        // Calculate distance to truth center
+        const distanceToTruth = camera.position.distanceTo(truthCenter);
+        isNearTruth = distanceToTruth < 25;
+
+        // Calculate if facing truth from correct angle
+        const cameraDirection = new THREE.Vector3(0, 0, -1);
+        cameraDirection.applyQuaternion(camera.quaternion);
+
+        // Check viewing angle
+        const angleDiff = Math.abs(camera.rotation.y - correctViewAngle);
+        const isCorrectAngle =
+          angleDiff < angleTolerance ||
+          angleDiff > Math.PI * 2 - angleTolerance;
+
+        // Check if we're in the correct viewing position
+        const viewDirection = new THREE.Vector3()
+          .subVectors(correctViewPosition, camera.position)
+          .normalize();
+        const viewDot = cameraDirection.dot(viewDirection);
+        isFacingTruth =
+          viewDot > 0.98 && isCorrectAngle && distanceToTruth < 30;
+
+        if (isNearTruth) {
+          truthHintElement.style.opacity = 0.5;
+          truthHintElement.textContent = "The TRUTH is nearby...";
+
+          autoRotate = distanceToTruth < 15;
+          glitchIntensity = Math.max(0, 1 - distanceToTruth / 30);
+        } else if (isFacingTruth) {
+          truthHintElement.style.opacity = 1;
+          truthHintElement.textContent = "You've found the TRUTH";
+
+          // Make truth letters red and glowing
+          truthGroup.children.forEach(function (group) {
+            group.children.forEach(function (cube) {
+              cube.material.color.setHex(0xff0000);
+              cube.material.emissive = new THREE.Color(0xff0000);
+              cube.material.emissiveIntensity = 1.0;
+
+              // Pulsing effect
+              const pulseTime = clock.getElapsedTime() * 3;
+              const pulseValue = Math.sin(pulseTime) * 0.2 + 1.0;
+              cube.scale.set(pulseValue, pulseValue, pulseValue);
+            });
+          });
+
+          controlsDisabled = true;
+          autoRotate = false;
+          glitchIntensity = 1.0;
+        } else {
+          truthHintElement.style.opacity = 0;
+
+          // Reset truth letters to white
+          truthGroup.children.forEach(function (group) {
+            group.children.forEach(function (cube) {
+              cube.material.color.setHex(0xffffff);
+              cube.material.emissive = undefined;
+              cube.scale.set(1, 1, 1);
+            });
+          });
+
+          autoRotate = false;
+          glitchIntensity = 0.1;
+        }
+      }
+
+      function updateGlitchEffect() {
+        const time = clock.getElapsedTime();
+
+        // Update particles
+        scene.children.forEach(function (obj) {
+          if (obj.userData && obj.userData.isParticles) {
+            const positions = obj.geometry.attributes.position.array;
+            const originalPositions = obj.userData.originalPositions;
+
+            for (let i = 0; i < positions.length; i += 3) {
+              positions[i] =
+                originalPositions[i] +
+                Math.sin(time * 2 + i) * 0.5 * glitchIntensity;
+              positions[i + 1] =
+                originalPositions[i + 1] +
+                Math.cos(time * 3 + i) * 0.5 * glitchIntensity;
+              positions[i + 2] =
+                originalPositions[i + 2] +
+                Math.sin(time * 2.5 + i) * 0.5 * glitchIntensity;
+            }
+
+            obj.geometry.attributes.position.needsUpdate = true;
+
+            if (isNearTruth) {
+              obj.material.opacity = 0.7 * glitchIntensity;
+              obj.material.color.setHex(0xff8888);
+              obj.material.size = 0.5 * (1 + glitchIntensity);
+            } else {
+              obj.material.opacity = 0.4;
+              obj.material.color.setHex(0xffdddd);
+              obj.material.size = 0.3;
+            }
+          }
+        });
+
+        // Random building glitches
+        buildings.forEach(function (building) {
+          building.userData.glitchTime += 0.01;
+
+          const shouldGlitch = Math.random() < 0.003 + glitchIntensity * 0.02;
+
+          if (shouldGlitch) {
+            building.userData.glitchDuration = 0.5 + Math.random() * 1.5;
+          }
+
+          if (building.userData.glitchDuration > 0) {
+            building.position.x =
+              building.userData.originalPosition.x +
+              (Math.random() - 0.5) * 4 * glitchIntensity;
+            building.position.y =
+              building.userData.originalPosition.y +
+              (Math.random() - 0.5) * 6 * glitchIntensity;
+            building.position.z =
+              building.userData.originalPosition.z +
+              (Math.random() - 0.5) * 4 * glitchIntensity;
+
+            const glitchColor =
+              Math.random() > 0.5 + glitchIntensity * 0.5
+                ? Math.random() * 0xffffff
+                : 0xff0000;
+            building.material.color.setHex(glitchColor);
+
+            if (Math.random() < glitchIntensity * 0.2) {
+              building.rotation.x =
+                (Math.random() - 0.5) * Math.PI * glitchIntensity;
+              building.rotation.z =
+                (Math.random() - 0.5) * Math.PI * glitchIntensity;
+            }
+
+            building.userData.glitchDuration -= 0.1;
+          } else {
+            building.position.copy(building.userData.originalPosition);
+            building.material.color.setHex(building.userData.originalColor);
+            building.rotation.set(0, 0, 0);
+          }
+        });
+
+        // Apply camera shake
+        if (glitchIntensity > 0.7 && !controlsDisabled) {
+          const shakeAmount = glitchIntensity * 0.1;
+          camera.position.x += (Math.random() - 0.5) * shakeAmount;
+          camera.position.z += (Math.random() - 0.5) * shakeAmount;
+        } else if (controlsDisabled) {
+          const shakeAmount = 0.15;
+          camera.position.x += (Math.random() - 0.5) * shakeAmount;
+          camera.position.z += (Math.random() - 0.5) * shakeAmount;
+        }
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        handleMovement();
+        updateTruthVisibility();
+        updateGlitchEffect();
+
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>

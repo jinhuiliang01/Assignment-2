@@ -30,7 +30,7 @@
       let truthGroup;
       let truthHintElement;
       let truthDirection = new THREE.Vector3();
-      let truthCenter = new THREE.Vector3(0, WORLD_HEIGHT, 0);
+      let truthCenter = new THREE.Vector3(-5, WORLD_HEIGHT, -15);
       let isNearTruth = false;
       let isFacingTruth = false;
       let autoRotate = false;
@@ -38,53 +38,40 @@
       let glitchIntensity = 0;
       let clock = new THREE.Clock();
 
-      // Viewing angle settings
-      let correctViewAngle = Math.PI * 0.25; // Angle from which TRUTH is visible (looking from NE)
-      let angleTolerance = 0.15; // How close the view angle needs to be
-      let correctViewPosition = new THREE.Vector3(15, WORLD_HEIGHT, 15); // Position where word aligns
-
       init();
       animate();
 
       function init() {
-        // Scene setup
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x000000);
 
-        // Camera
         camera = new THREE.PerspectiveCamera(
           75,
           window.innerWidth / window.innerHeight,
           0.1,
           1000
         );
-        camera.position.set(0, WORLD_HEIGHT, 5);
+        camera.position.set(0, WORLD_HEIGHT, 0);
 
-        // Renderer
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Create environment
         createChaoticCity();
         createGridFloor();
         createTruthStructure();
 
-        // Controls
-        document.addEventListener("keydown", function (e) {
+        document.addEventListener("keydown", (e) => {
           if (!controlsDisabled) keys[e.key] = true;
           if (e.key === "Escape") controlsDisabled = false;
         });
-        document.addEventListener("keyup", function (e) {
-          keys[e.key] = false;
-        });
+        document.addEventListener("keyup", (e) => (keys[e.key] = false));
 
-        // Mouse lock
-        document.addEventListener("click", function () {
+        document.addEventListener("click", () => {
           document.body.requestPointerLock();
         });
 
-        document.addEventListener("mousemove", function (e) {
+        document.addEventListener("mousemove", (e) => {
           if (
             document.pointerLockElement === document.body &&
             !controlsDisabled
@@ -94,9 +81,10 @@
         });
 
         truthHintElement = document.getElementById("truth-hint");
+
         addTruthParticles();
 
-        window.addEventListener("resize", function () {
+        window.addEventListener("resize", () => {
           camera.aspect = window.innerWidth / window.innerHeight;
           camera.updateProjectionMatrix();
           renderer.setSize(window.innerWidth, window.innerHeight);
@@ -117,7 +105,6 @@
 
         const grid = new THREE.GridHelper(100, 50, 0x000000, 0x000000);
         grid.material.opacity = 1.0;
-        grid.material.transparent = false;
         grid.position.y = 0.01;
         scene.add(grid);
       }
@@ -133,11 +120,8 @@
               const width = baseSize * (0.5 + Math.random());
               const height = baseSize * (0.5 + Math.random() * 5);
               const depth = baseSize * (0.5 + Math.random());
-
               let yPos = height / 2;
-              if (Math.random() > 0.6) {
-                yPos += 2 + Math.random() * 5;
-              }
+              if (Math.random() > 0.6) yPos += 2 + Math.random() * 5;
 
               const geometry = new THREE.BoxGeometry(width, height, depth);
               const material = new THREE.MeshBasicMaterial({
@@ -151,7 +135,6 @@
                 yPos,
                 z + (Math.random() - 0.5) * 2
               );
-
               building.userData = {
                 originalPosition: building.position.clone(),
                 originalColor: 0xffffff,
@@ -177,272 +160,167 @@
 
       function createTruthStructure() {
         truthGroup = new THREE.Group();
+        const spacing = 2.5;
+        const x = truthCenter.x - 5;
+        const z = truthCenter.z;
+        const y = truthCenter.y;
 
-        // Space the letters out in 3D space
-        const letterSpacingX = 5;
-        const letterSpacingZ = 5;
-        const startX = -10;
-        const startZ = -10;
-        const yPos = WORLD_HEIGHT + 2;
-
-        // Create each letter at different positions
-        createLetterT(startX, yPos, startZ);
-        createLetterR(startX + letterSpacingX, yPos, startZ + letterSpacingZ);
-        createLetterU(startX + letterSpacingX * 2, yPos, startZ);
-        createLetterT(
-          startX + letterSpacingX * 3,
-          yPos,
-          startZ + letterSpacingZ
-        );
-        createLetterH(startX + letterSpacingX * 4, yPos, startZ);
+        createLetterT(x, y, z);
+        createLetterR(x + spacing, y, z);
+        createLetterU(x + spacing * 2, y, z);
+        createLetterT(x + spacing * 3, y, z);
+        createLetterH(x + spacing * 4, y, z);
 
         scene.add(truthGroup);
-
-        // Make truth cubes look like normal buildings initially
-        truthGroup.children.forEach(function (group) {
-          group.children.forEach(function (cube) {
-            cube.material.color.setHex(0xffffff);
-            cube.material.transparent = false;
-            cube.material.opacity = 1;
-            cube.material.wireframe = false;
-            cube.material.emissive = undefined;
-          });
+        truthGroup.children.forEach((cube) => {
+          cube.material.color.setHex(0xcccccc);
+          cube.material.transparent = true;
+          cube.material.opacity = 0.2;
+          cube.material.emissive = undefined;
         });
       }
 
       function createLetterT(x, y, z) {
-        const group = new THREE.Group();
-
-        // Vertical line (3 cubes tall)
-        for (let i = 0; i < 3; i++) {
-          const cube = createTruthCube(x, y + i, z);
-          group.add(cube);
-        }
-
-        // Horizontal line (3 cubes wide)
-        for (let i = -1; i <= 1; i++) {
-          const cube = createTruthCube(x + i, y + 2, z);
-          group.add(cube);
-        }
-
-        truthGroup.add(group);
+        for (let i = 0; i < 5; i++) addTruthCube(x, y, z + i);
+        for (let i = -1; i <= 1; i++) addTruthCube(x + i, y, z + 4);
       }
 
       function createLetterR(x, y, z) {
-        const group = new THREE.Group();
-
-        // Vertical line
-        for (let i = 0; i < 3; i++) {
-          const cube = createTruthCube(x, y + i, z);
-          group.add(cube);
+        for (let i = 0; i < 5; i++) addTruthCube(x, y, z + i);
+        for (let i = 0.5; i <= 1; i += 0.5) {
+          addTruthCube(x + i, y, z + 4);
+          addTruthCube(x + i, y, z + 2);
         }
-
-        // Top horizontal
-        group.add(createTruthCube(x + 1, y + 2, z));
-        // Middle horizontal
-        group.add(createTruthCube(x + 1, y + 1, z));
-        // Diagonal
-        group.add(createTruthCube(x + 1, y, z));
-
-        truthGroup.add(group);
+        addTruthCube(x + 1, y, z + 3);
       }
 
       function createLetterU(x, y, z) {
-        const group = new THREE.Group();
-
-        // Left vertical
-        for (let i = 0; i < 3; i++) {
-          group.add(createTruthCube(x, y + i, z));
+        for (let i = 1; i < 5; i++) {
+          addTruthCube(x, y, z + i);
+          addTruthCube(x + 1, y, z + i);
         }
-
-        // Right vertical
-        for (let i = 0; i < 3; i++) {
-          group.add(createTruthCube(x + 1, y + i, z));
-        }
-
-        // Bottom
-        group.add(createTruthCube(x + 0.5, y, z));
-
-        truthGroup.add(group);
+        addTruthCube(x + 0.5, y, z);
       }
 
       function createLetterH(x, y, z) {
-        const group = new THREE.Group();
-
-        // Left vertical
-        for (let i = 0; i < 3; i++) {
-          group.add(createTruthCube(x, y + i, z));
+        for (let i = 0; i < 5; i++) {
+          addTruthCube(x, y, z + i);
+          addTruthCube(x + 1, y, z + i);
         }
-
-        // Right vertical
-        for (let i = 0; i < 3; i++) {
-          group.add(createTruthCube(x + 1, y + i, z));
-        }
-
-        // Middle horizontal
-        group.add(createTruthCube(x + 0.5, y + 1, z));
-
-        truthGroup.add(group);
+        addTruthCube(x + 0.5, y, z + 2);
       }
 
-      function createTruthCube(x, y, z) {
-        const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+      function addTruthCube(x, y, z) {
+        const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
         const material = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          wireframe: false,
+          color: 0xcccccc,
+          transparent: true,
+          opacity: 0.2,
         });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.set(x, y, z);
-        return cube;
+        truthGroup.add(cube);
       }
 
       function addTruthParticles() {
-        const particlesGeometry = new THREE.BufferGeometry();
-        const particlesCnt = 100;
-        const posArray = new Float32Array(particlesCnt * 3);
-
-        for (let i = 0; i < particlesCnt * 3; i += 3) {
+        const geometry = new THREE.BufferGeometry();
+        const count = 200;
+        const positions = new Float32Array(count * 3);
+        for (let i = 0; i < count * 3; i += 3) {
           const angle = Math.random() * Math.PI * 2;
-          const radius = 5 + Math.random() * 10;
-          posArray[i] = truthCenter.x + Math.cos(angle) * radius;
-          posArray[i + 1] = truthCenter.y + (Math.random() - 0.5) * 10;
-          posArray[i + 2] = truthCenter.z + Math.sin(angle) * radius;
+          const radius = 3 + Math.random() * 7;
+          positions[i] = truthCenter.x + Math.cos(angle) * radius;
+          positions[i + 1] = truthCenter.y + (Math.random() - 0.5) * 5;
+          positions[i + 2] = truthCenter.z + Math.sin(angle) * radius;
         }
-
-        particlesGeometry.setAttribute(
+        geometry.setAttribute(
           "position",
-          new THREE.BufferAttribute(posArray, 3)
+          new THREE.BufferAttribute(positions, 3)
         );
-
-        const particlesMaterial = new THREE.PointsMaterial({
+        const material = new THREE.PointsMaterial({
           size: 0.3,
           color: 0xffdddd,
           transparent: true,
           opacity: 0.4,
         });
-
-        const particlesMesh = new THREE.Points(
-          particlesGeometry,
-          particlesMaterial
-        );
-        particlesMesh.userData = {
+        const particles = new THREE.Points(geometry, material);
+        particles.userData = {
           isParticles: true,
-          originalPositions: posArray.slice(),
+          originalPositions: positions.slice(),
         };
-        scene.add(particlesMesh);
+        scene.add(particles);
       }
 
       function handleMovement() {
         if (controlsDisabled) return;
+        const dir = new THREE.Vector3();
+        if (keys["w"]) dir.z -= 1;
+        if (keys["s"]) dir.z += 1;
+        if (keys["a"]) dir.x -= 1;
+        if (keys["d"]) dir.x += 1;
 
-        const direction = new THREE.Vector3();
-        if (keys["w"]) direction.z -= 1;
-        if (keys["s"]) direction.z += 1;
-        if (keys["a"]) direction.x -= 1;
-        if (keys["d"]) direction.x += 1;
-
-        if (direction.length() === 0 && !autoRotate) return;
-
-        if (!autoRotate && direction.length() > 0) {
-          direction.normalize();
+        if (!autoRotate && dir.length() > 0) {
+          dir.normalize();
           const yaw = camera.rotation.y;
-          const forward = new THREE.Vector3(
-            Math.sin(yaw),
-            0,
-            Math.cos(yaw)
-          ).normalize();
-          const right = new THREE.Vector3(
-            Math.cos(yaw),
-            0,
-            -Math.sin(yaw)
-          ).normalize();
-
+          const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+          const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
           camera.position.add(
             right
-              .multiplyScalar(direction.x * moveSpeed)
-              .add(forward.multiplyScalar(direction.z * moveSpeed))
+              .multiplyScalar(dir.x * moveSpeed)
+              .add(forward.multiplyScalar(dir.z * moveSpeed))
           );
         } else if (autoRotate) {
-          truthDirection
-            .copy(correctViewPosition)
-            .sub(camera.position)
-            .normalize();
-          const targetRotationY = Math.atan2(
-            truthDirection.x,
-            truthDirection.z
-          );
-          let currentRotationY = camera.rotation.y;
-          const rotationDiff = targetRotationY - currentRotationY;
-          const normalizedDiff =
-            ((rotationDiff + Math.PI) % (Math.PI * 2)) - Math.PI;
-          camera.rotation.y += normalizedDiff * 0.05;
+          truthDirection.copy(truthCenter).sub(camera.position).normalize();
+          const targetY = Math.atan2(truthDirection.x, truthDirection.z);
+          const diff =
+            ((targetY - camera.rotation.y + Math.PI) % (Math.PI * 2)) - Math.PI;
+          camera.rotation.y += diff * 0.05;
         }
-
         camera.position.y = WORLD_HEIGHT;
       }
 
       function updateTruthVisibility() {
-        // Calculate distance to truth center
-        const distanceToTruth = camera.position.distanceTo(truthCenter);
-        isNearTruth = distanceToTruth < 25;
+        const dist = camera.position.distanceTo(truthCenter);
+        isNearTruth = dist < 15;
+        const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(
+          camera.quaternion
+        );
+        truthDirection.copy(truthCenter).sub(camera.position).normalize();
+        const dot = camDir.dot(truthDirection);
+        isFacingTruth = dot > 0.97 && dist < 20;
 
-        // Calculate if facing truth from correct angle
-        const cameraDirection = new THREE.Vector3(0, 0, -1);
-        cameraDirection.applyQuaternion(camera.quaternion);
-
-        // Check viewing angle
-        const angleDiff = Math.abs(camera.rotation.y - correctViewAngle);
-        const isCorrectAngle =
-          angleDiff < angleTolerance ||
-          angleDiff > Math.PI * 2 - angleTolerance;
-
-        // Check if we're in the correct viewing position
-        const viewDirection = new THREE.Vector3()
-          .subVectors(correctViewPosition, camera.position)
-          .normalize();
-        const viewDot = cameraDirection.dot(viewDirection);
-        isFacingTruth =
-          viewDot > 0.98 && isCorrectAngle && distanceToTruth < 30;
-
-        if (isNearTruth) {
+        if (isNearTruth && !isFacingTruth) {
           truthHintElement.style.opacity = 0.5;
           truthHintElement.textContent = "The TRUTH is nearby...";
-
-          autoRotate = distanceToTruth < 15;
-          glitchIntensity = Math.max(0, 1 - distanceToTruth / 30);
+          truthGroup.children.forEach((cube) => {
+            cube.material.opacity = 0.4;
+            cube.material.color.setHex(0xeecccc);
+          });
+          autoRotate = dist < 10;
+          glitchIntensity = Math.max(0, 1 - dist / 20);
         } else if (isFacingTruth) {
           truthHintElement.style.opacity = 1;
           truthHintElement.textContent = "You've found the TRUTH";
-
-          // Make truth letters red and glowing
-          truthGroup.children.forEach(function (group) {
-            group.children.forEach(function (cube) {
-              cube.material.color.setHex(0xff0000);
-              cube.material.emissive = new THREE.Color(0xff0000);
-              cube.material.emissiveIntensity = 1.0;
-
-              // Pulsing effect
-              const pulseTime = clock.getElapsedTime() * 3;
-              const pulseValue = Math.sin(pulseTime) * 0.2 + 1.0;
-              cube.scale.set(pulseValue, pulseValue, pulseValue);
-            });
+          truthGroup.children.forEach((cube) => {
+            cube.material.opacity = 1.0;
+            cube.material.color.setHex(0xff0000);
+            cube.material.emissive = new THREE.Color(0xff0000);
+            cube.material.emissiveIntensity = 1.0;
+            const t = clock.getElapsedTime() * 3;
+            const s = Math.sin(t) * 0.2 + 1.3;
+            cube.scale.set(s, s, s);
           });
-
           controlsDisabled = true;
           autoRotate = false;
           glitchIntensity = 1.0;
         } else {
           truthHintElement.style.opacity = 0;
-
-          // Reset truth letters to white
-          truthGroup.children.forEach(function (group) {
-            group.children.forEach(function (cube) {
-              cube.material.color.setHex(0xffffff);
-              cube.material.emissive = undefined;
-              cube.scale.set(1, 1, 1);
-            });
+          truthGroup.children.forEach((cube) => {
+            cube.material.opacity = 0.2;
+            cube.material.color.setHex(0xcccccc);
+            cube.material.emissive = undefined;
+            cube.scale.set(1, 1, 1);
           });
-
           autoRotate = false;
           glitchIntensity = 0.1;
         }
@@ -451,99 +329,46 @@
       function updateGlitchEffect() {
         const time = clock.getElapsedTime();
 
-        // Update particles
-        scene.children.forEach(function (obj) {
+        // Glitch particles
+        scene.children.forEach((obj) => {
           if (obj.userData && obj.userData.isParticles) {
-            const positions = obj.geometry.attributes.position.array;
-            const originalPositions = obj.userData.originalPositions;
-
-            for (let i = 0; i < positions.length; i += 3) {
-              positions[i] =
-                originalPositions[i] +
-                Math.sin(time * 2 + i) * 0.5 * glitchIntensity;
-              positions[i + 1] =
-                originalPositions[i + 1] +
-                Math.cos(time * 3 + i) * 0.5 * glitchIntensity;
-              positions[i + 2] =
-                originalPositions[i + 2] +
-                Math.sin(time * 2.5 + i) * 0.5 * glitchIntensity;
+            const pos = obj.geometry.attributes.position.array;
+            const orig = obj.userData.originalPositions;
+            for (let i = 0; i < pos.length; i += 3) {
+              pos[i] = orig[i] + Math.sin(time * 2 + i) * 0.5 * glitchIntensity;
+              pos[i + 1] =
+                orig[i + 1] + Math.cos(time * 3 + i) * 0.5 * glitchIntensity;
+              pos[i + 2] =
+                orig[i + 2] + Math.sin(time * 2.5 + i) * 0.5 * glitchIntensity;
             }
-
             obj.geometry.attributes.position.needsUpdate = true;
-
-            if (isNearTruth) {
-              obj.material.opacity = 0.7 * glitchIntensity;
-              obj.material.color.setHex(0xff8888);
-              obj.material.size = 0.5 * (1 + glitchIntensity);
-            } else {
-              obj.material.opacity = 0.4;
-              obj.material.color.setHex(0xffdddd);
-              obj.material.size = 0.3;
-            }
+            obj.material.opacity = isNearTruth ? 0.7 * glitchIntensity : 0.4;
+            obj.material.color.setHex(isNearTruth ? 0xff8888 : 0xffdddd);
+            obj.material.size = isNearTruth ? 0.5 * (1 + glitchIntensity) : 0.3;
           }
         });
 
-        // Random building glitches
-        buildings.forEach(function (building) {
-          building.userData.glitchTime += 0.01;
-
-          const shouldGlitch = Math.random() < 0.003 + glitchIntensity * 0.02;
-
-          if (shouldGlitch) {
-            building.userData.glitchDuration = 0.5 + Math.random() * 1.5;
-          }
-
-          if (building.userData.glitchDuration > 0) {
-            building.position.x =
-              building.userData.originalPosition.x +
-              (Math.random() - 0.5) * 4 * glitchIntensity;
-            building.position.y =
-              building.userData.originalPosition.y +
-              (Math.random() - 0.5) * 6 * glitchIntensity;
-            building.position.z =
-              building.userData.originalPosition.z +
-              (Math.random() - 0.5) * 4 * glitchIntensity;
-
-            const glitchColor =
-              Math.random() > 0.5 + glitchIntensity * 0.5
-                ? Math.random() * 0xffffff
-                : 0xff0000;
-            building.material.color.setHex(glitchColor);
-
-            if (Math.random() < glitchIntensity * 0.2) {
-              building.rotation.x =
-                (Math.random() - 0.5) * Math.PI * glitchIntensity;
-              building.rotation.z =
-                (Math.random() - 0.5) * Math.PI * glitchIntensity;
-            }
-
-            building.userData.glitchDuration -= 0.1;
+        // Glitch buildings
+        buildings.forEach((b) => {
+          if (b.userData.glitchDuration > 0) {
+            b.position.x += (Math.random() - 0.5) * 0.2;
+            b.position.y += (Math.random() - 0.5) * 0.2;
+            b.material.color.setHex(Math.random() > 0.5 ? 0xff0000 : 0xffffff);
+            b.userData.glitchDuration--;
+          } else if (Math.random() < 0.003 + glitchIntensity * 0.02) {
+            b.userData.glitchDuration = 10 + Math.floor(Math.random() * 10);
           } else {
-            building.position.copy(building.userData.originalPosition);
-            building.material.color.setHex(building.userData.originalColor);
-            building.rotation.set(0, 0, 0);
+            b.position.copy(b.userData.originalPosition);
+            b.material.color.setHex(b.userData.originalColor);
           }
         });
-
-        // Apply camera shake
-        if (glitchIntensity > 0.7 && !controlsDisabled) {
-          const shakeAmount = glitchIntensity * 0.1;
-          camera.position.x += (Math.random() - 0.5) * shakeAmount;
-          camera.position.z += (Math.random() - 0.5) * shakeAmount;
-        } else if (controlsDisabled) {
-          const shakeAmount = 0.15;
-          camera.position.x += (Math.random() - 0.5) * shakeAmount;
-          camera.position.z += (Math.random() - 0.5) * shakeAmount;
-        }
       }
 
       function animate() {
         requestAnimationFrame(animate);
-
         handleMovement();
         updateTruthVisibility();
         updateGlitchEffect();
-
         renderer.render(scene, camera);
       }
     </script>

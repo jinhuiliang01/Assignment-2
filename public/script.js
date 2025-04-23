@@ -97,6 +97,9 @@ function createChaoticCity() {
         let yPos = height / 2;
         if (Math.random() > 0.4) yPos += 3 + Math.random() * 8; // 60% of buildings float mid-air, set to random height (3-11 units higher).
 
+        // This video as the reference: https://www.youtube.com/watch?app=desktop&v=DVkXZPzopEs
+        // This video shows how to build a Minecraft world through Three.js and I use the same geometry and material.
+        // My work would be better because I don't need to add the environment and materials or how they look for different items
         const geometry = new THREE.BoxGeometry(width, height, depth);
         const material = new THREE.MeshBasicMaterial({
           color: 0xffffff,
@@ -137,7 +140,7 @@ function createTargetCube() {
   const geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2); // Slightly bigger cube.
   const material = new THREE.MeshBasicMaterial({
     color: 0x000000, // Black.
-    transparent: true, // See-through.
+    transparent: true, // See through.
     opacity: 0.2, // 20% visible.
   });
   targetCube = new THREE.Mesh(geometry, material);

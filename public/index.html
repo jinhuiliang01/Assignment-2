@@ -27,6 +27,7 @@
       animate(); // Starts the game loop.
 
       function init() {
+        // https://stackoverflow.com/questions/7884081/what-is-the-use-of-the-init-usage-in-javascript
         scene = new THREE.Scene(); // The empty 3D room.
         scene.background = new THREE.Color(0x000000); // updates 60 times per second.
 
@@ -60,6 +61,7 @@
             camera.rotation.y -= e.movementX * mouseSensitivity;
           }
         });
+        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/if...else
 
         window.addEventListener("resize", () => {
           // If users resize the browser window, it adjusts camera view to prevent stretching and renderer size to fill the new window size.

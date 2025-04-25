@@ -12,6 +12,12 @@ let glitchIntensity = 0; // Increases as you get closer to the cube.
 let clock = new THREE.Clock(); // Used to time glitches and animations.
 let chaosStopped = false; // Chaos is happening.
 
+let audioElement,
+  audioContext,
+  gainNode,
+  isSoundPlaying = false;
+let playButton;
+
 // Game start botton.
 init(); // Prepares the game world.
 animate(); // Starts the game loop.
@@ -62,6 +68,57 @@ function init() {
 
   clock.start(); // Starts a stopwatch to time animations/glitches and it needed for smooth effects later.
 }
+
+// Create sound toggle button.
+playButton = document.createElement("button"); // Creates a new HTML <button> element and assigns it to the variable playButton.
+playButton.textContent = "Play Sound"; // Sets the button's text to "Play Sound".
+playButton.style.position = "absolute"; // Positions it relative to the nearest positioned ancestor.
+playButton.style.top = "20px";
+playButton.style.right = "20px"; // Places it 20px from the top-right corner.
+playButton.style.zIndex = "1000"; // Ensures the button stays on top of other elements.
+document.body.appendChild(playButton); // Adds the button to the <body> of the webpage.
+
+// Audio setup.
+audioContext = new (window.AudioContext || window.webkitAudioContext)(); // Creates a new Web Audio API context.
+gainNode = audioContext.createGain(); // Creates a gain node (controls audio volume).
+gainNode.gain.value = 0; // Sets initial volume to 0 (muted).
+
+// Create audio element.
+audioElement = new Audio("glitch sound.wav"); // Creates an <audio> element that loads "glitch sound.wav".
+audioElement.loop = true; // Makes the audio loop when played.
+
+// Connect audio element to Web Audio API.
+const source = audioContext.createMediaElementSource(audioElement); // Creates a source node from the <audio> element.
+source.connect(gainNode);
+gainNode.connect(audioContext.destination); // Connects the audio source to gain node to speakers.
+
+// Handle browser autoplay restrictions.
+document.body.addEventListener(
+  "click",
+  () => {
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+  },
+  { once: true }
+); // This listener resumes the audio context on the first click anywhere on the page.
+
+// Button click handler.
+playButton.addEventListener("click", () => {
+  if (chaosStopped) return; // If chaosStopped (a variable not shown here) is true, exit early.
+
+  isSoundPlaying = !isSoundPlaying; // Toggles isSoundPlaying between true and false.
+  gainNode.gain.value = isSoundPlaying ? 1 : 0; // If isSoundPlaying is true, sets volume to 1, if false, sets volume to 0.
+
+  if (isSoundPlaying) {
+    // If playing, starts audio playback and set the word in the button to stop sound.
+    audioElement.play();
+    playButton.textContent = "Stop Sound";
+  } else {
+    audioElement.pause(); // If paused, stops audio and set the word in the button to play sound.
+    playButton.textContent = "Play Sound";
+  }
+});
 
 function createGridFloor() {
   // Makes a giant white floor.
@@ -197,49 +254,62 @@ function handleMovement() {
 }
 
 function updateCubeVisibility() {
-  // Measures how far you are from the black cube.
-  const dist = camera.position.distanceTo(CUBE_POSITION); // // Creates a 0→1 value where: 0 = Far away (>20 units), 1 = Very close (0 units).
+  const dist = camera.position.distanceTo(CUBE_POSITION); // Computes the distance (dist) between the camera and CUBE_POSITION (a THREE.Vector3).
+  glitchIntensity = Math.min(1, Math.max(0, 1 - dist / 20)); // Calculates glitchIntensity (a value between 0 and 1): 1 - dist / 20 → Intensity increases as the camera gets closer (within 20 units).
+  // Math.max(0, ...) → Clamps to minimum 0.
+  // Math.min(1, ...) → Clamps to maximum 1.
 
-  glitchIntensity = Math.min(1, Math.max(0, 1 - dist / 20)); //Clamps it between 0 and 1.
   if (!chaosStopped) {
+    // Executes this block if chaosStopped is false.
     if (dist < 2.5) {
-      // When users reach the black cube, all glitches stop and cubes back to normal.
-      chaosStopped = true;
-      // Reset all buildings to original state.
+      // If the camera is within 2.5 units of the cube
+      chaosStopped = true; // Set it to true.
+
+      // Reset all buildings to original state
       buildings.forEach((b) => {
-        // When you reach the cube, returns all buildings to their original positions, reset colours into white and set background into pure black.
         b.position.copy(b.userData.originalPosition);
         b.material.color.setHex(b.userData.originalColor);
-      });
-      scene.background.setHex(0x000000);
+      }); // Resets each building's position and color to their original values (stored in userData).
+      scene.background.setHex(0x000000); // Sets the scene's background to black.
+
+      // Stop sound if it's playing
+      if (isSoundPlaying) {
+        gainNode.gain.value = 0; // Mutes volume.
+        audioElement.pause(); // Pauses the audio element.
+        isSoundPlaying = false;
+        playButton.textContent = "Play Sound"; // Updates isSoundPlaying and button text.
+      }
+
+      // Disable the play button so user can't restart the sound
+      playButton.style.display = "none"; // Hides the sound toggle button.
     }
 
-    // Cube becomes more visible.
-    targetCube.material.opacity = 0.2 + glitchIntensity * 0.8;
+    // Cube becomes more visible as you get closer
+    targetCube.material.opacity = 0.2 + glitchIntensity * 0.8; // Sets the cube's opacity: minimum: 0.2, maximum 1.0.
     targetCube.scale.set(
       1 + glitchIntensity,
       1 + glitchIntensity,
       1 + glitchIntensity
-    ); // Effect intensifies as you get closer.
+    ); // Scales the cube: minimum scale 1, maximum scale 2.
   } else {
-    targetCube.material.color.setHex(0x00ff00); // Turns green.
-    targetCube.material.opacity = 1; // Fully solid.
-    targetCube.scale.set(1.5, 1.5, 1.5); // Grows 50%.
+    // Executes this block when chaos mode is disabled.
+    targetCube.material.color.setHex(0x00ff00);
+    targetCube.material.opacity = 1;
+    targetCube.scale.set(1.5, 1.5, 1.5); // Makes the cube: green, fully opaque and slightly bigger.
 
-    // Add stabilization sphere.
     if (!scene.getObjectByName("stabilizationSphere")) {
-      // Green wireframe sphere.
+      // Checks if a sphere named "stabilizationSphere" doesn’t already exist.
       const sphereGeometry = new THREE.SphereGeometry(3, 32, 32);
       const sphereMaterial = new THREE.MeshBasicMaterial({
         color: 0x00ff00,
         wireframe: true,
         transparent: true,
         opacity: 0.3,
-      });
+      }); // Creates a green wireframe sphere: radius 3, segments 32, wireframe with lower opacity.
       const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-      sphere.position.copy(CUBE_POSITION);
-      sphere.name = "stabilizationSphere";
-      scene.add(sphere);
+      sphere.position.copy(CUBE_POSITION); // Places the sphere at CUBE_POSITION.
+      sphere.name = "stabilizationSphere"; // Names it for future reference.
+      scene.add(sphere); // Adds it to the scene.
     }
   }
 }

@@ -142,41 +142,44 @@ function createChaoticCity() {
   const spacing = 3;
   const baseSize = 1;
 
-  // Creates a grid system.
-  for (let x = -25; x <= 25; x += spacing) {
-    // Create the whole city.
+  // Recursive function to generate building rows (modified)
+  function generateBuildingRow(currentX) {
+    // Base case: stop recursion when past maximum X
+    if (currentX > 25) return;
+
+    // Process current row
     for (let z = -25; z <= 25; z += spacing) {
       if (Math.random() > 0.2) {
-        // Rolls a random number: 80% chance to build, 20% chance to leave empty.
-        const width = baseSize * (0.3 + Math.random()); // Random width (0.3-1.3).
-        const height = baseSize * (0.5 + Math.random() * 8); // Random height (0.5-8.5).
-        const depth = baseSize * (0.3 + Math.random()); // Random depth (0.3-1.3).
+        // Keep your 80% building chance
+        // Original building creation code (preserved)
+        const width = baseSize * (0.3 + Math.random());
+        const height = baseSize * (0.5 + Math.random() * 8);
+        const depth = baseSize * (0.3 + Math.random());
         let yPos = height / 2;
-        if (Math.random() > 0.4) yPos += 3 + Math.random() * 8; // 60% of buildings float mid-air, set to random height (3-11 units higher).
+        if (Math.random() > 0.4) yPos += 3 + Math.random() * 8;
 
-        // This video as the reference: https://www.youtube.com/watch?app=desktop&v=DVkXZPzopEs
-        // This video shows how to build a Minecraft world through Three.js and I use the same geometry and material.
-        // My work would be better because I don't need to add the environment and materials or how they look for different items
         const geometry = new THREE.BoxGeometry(width, height, depth);
         const material = new THREE.MeshBasicMaterial({
           color: 0xffffff,
-          wireframe: Math.random() > 0.5, // Half look solid white, half look like X-ray outlines.
+          wireframe: Math.random() > 0.5,
         });
 
         const building = new THREE.Mesh(geometry, material);
         building.position.set(
-          x + (Math.random() - 0.5) * 4, // Random X position (-2 to +2 from grid).
+          currentX + (Math.random() - 0.5) * 4, // Fixed x position calculation
           yPos,
-          z + (Math.random() - 0.5) * 4 // Random Z position (-2 to +2 from grid).
+          z + (Math.random() - 0.5) * 4
         );
+
+        // Keep original userData setup
         building.userData = {
-          // Saves the building's "normal state" to return to later.
           originalPosition: building.position.clone(),
           originalColor: 0xffffff,
           glitchTime: Math.random() * 10,
           glitchDuration: 0,
         };
 
+        // Preserve wireframe logic
         if (!material.wireframe) {
           const edges = new THREE.EdgesGeometry(geometry);
           const wireframe = new THREE.LineSegments(
@@ -190,7 +193,13 @@ function createChaoticCity() {
         buildings.push(building);
       }
     }
+
+    // Recursive call with next X position (fixed spacing)
+    generateBuildingRow(currentX + spacing);
   }
+
+  // Start recursion with initial X position (matches original loop)
+  generateBuildingRow(-25);
 }
 
 function createTargetCube() {
